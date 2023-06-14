@@ -1,4 +1,4 @@
-# LORA: LOW-RANK ADAPTATION OF LARGE LANGUAGE MODEL 
+# LoRA: LOW-RANK ADAPTATION OF LARGE LANGUAGE MODEL 
 
 
 ## Introduction
@@ -45,7 +45,7 @@ where $B$ and $A$ have trainable parameters.
 
 if $W_0$ is a $d \times k$ matrix, $B$ is a $d \times r$ matrix and $A$ is a $r \times k$ matrix, then the number of trainable parameters is $d \times r + r \times k$. where $r$ << min($m$, $n$). $r$ is `intrinsic low-rank` of the matrix $W_0$.
 
-- Scale the $ \triangle W$ by factor $\frac{\alpha}{r}$. 
+- Scale the $\triangle W$ by factor $\frac{\alpha}{r}$. 
 
 ## APPLYING LORA TO TRANSFORMER
 

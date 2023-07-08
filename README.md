@@ -5,8 +5,16 @@
 ---
 ---
 
- ## [RNN and LSTM](https://arxiv.org/pdf/1808.03314.pdf): In this paper, we will discuss the basic concepts of RNN and LSTM, and how they are used in NLP tasks. We will also discuss the problems of RNN and LSTM, and how to solve them. For more details, please refer to the [RNN and LSTM](Notes/RNN_and_LSTM.md) notes.
+ ## [RNN and LSTM](https://arxiv.org/pdf/1808.03314.pdf): In this paper, authors propose a new type of RNN called Long Short-Term Memory (LSTM). LSTM is a special kind of RNN, capable of learning long-term dependencies. For more details, please refer to the [RNN and LSTM](Notes/LSTM/LSTM.md) notes.
+ ---
+ ---
 
+ ## [BRNN](https://deeplearning.cs.cmu.edu/S23/document/readings/Bidirectional%20Recurrent%20Neural%20Networks.pdf): In this paper, authors propose a new type of RNN called Bidirectional RNN (BRNN). BRNN is a combination of two RNNs, one of which is forward and the other is backward. The forward RNN reads the input sequence from left to right, and the backward RNN reads the input sequence from right to left. For more details, please refer to the [BRNN](Notes/BRNN/BRNN.md) notes.
+
+ ---
+ ---
+
+ ## [GRU](https://arxiv.org/pdf/1406.1078.pdf): In this paper, authors propose a new type of RNN called Gated Recurrent Unit (GRU). GRU is a special kind of RNN, capable of learning long-term dependencies. For more details, please refer to the [GRU](Notes/GRU/GRU.md) notes.
 
 
 ---

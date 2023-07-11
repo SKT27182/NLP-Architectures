@@ -5,38 +5,75 @@ os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
 import tensorflow as tf
 tf.get_logger().setLevel("ERROR")
 import numpy as np
+import tensorflow_hub as hub
+
+hub_layer = hub.KerasLayer("https://tfhub.dev/google/tf2-preview/nnlm-en-dim128/1", output_shape=[128],
+                           input_shape=[], dtype=tf.string)
 
 
 class MemNN:
 
     def __init__(self,
-                 corporus, batch_size=64, max_query_len=16, max_story_len=150, vocab_size=10000, embedding_size=128, k=3):
+                 corporus, max_query_len=1, max_story_len=10, vocab_size=10000, embedding_size=128, k=3):
+        
+        """
+        corporus: a list of strings that contains all the words in the corporus
+        
+        max_query_len: the max length of the query, default is 1, which means the query is a single sentence
+        
+        max_story_len: the max length of the story, default is 2, which means the story is a list of 2 sentences
+        
+        vocab_size: the size of the vocabulary, default is 10000
+        
+        embedding_size: the size of the embedding, default is 128
+        
+        k: the number of hops, default is 3
+        
+        """
 
         self.embedding_size = embedding_size
         self.max_query_len = max_query_len
         self.max_story_len = max_story_len
         self.k = k
-        self.batch_size = batch_size
+        self.batch_size = 8
 
-        self.text_tokenizer = tf.keras.layers.TextVectorization(max_tokens=vocab_size, output_mode='int', output_sequence_length=None)
+        self.text_tokenizer = tf.keras.layers.TextVectorization(max_tokens=vocab_size, output_mode='int', output_sequence_length=max_query_len)
         # get the vocab size
         self.text_tokenizer.adapt(corporus)
         self.vocab_size = len(self.text_tokenizer.get_vocabulary())
 
-    def _preprocess_query_and_story(self, query, story):
+    def _pad_stories(self, stories):
+        batch_size, n_sentence = stories.shape
+
+        if n_sentence < self.max_story_len:
+            padding = np.array([[""] * (self.max_story_len - n_sentence)] * batch_size)
+            stories = np.concatenate((stories, padding), axis=1)
+
+        return stories
+
+    def embedding(self, inputs):
             
-        # query: a list of strings
-        # story: a list of strings
+            """
+            inputs: a list of strings
+            
+            return: a list of embeddings
+            
+            """
+            
+            outputs = []
 
-        # tokenize the query and story
-        tokenized_query = self.text_tokenizer(query)
-        tokenized_story = self.text_tokenizer(story)
+            x = inputs
 
-        # pad the query and story
-        padded_query = tf.keras.preprocessing.sequence.pad_sequences(tokenized_query, maxlen=self.max_query_len, padding='post')
-        padded_story = tf.keras.preprocessing.sequence.pad_sequences(tokenized_story, maxlen=self.max_story_len, padding='post')
+            for _, single_input in enumerate(x):
 
-        return padded_query, padded_story
+
+                single_input = hub_layer(single_input)
+
+                outputs.append(single_input)
+
+            outputs = tf.stack(outputs)
+
+            return outputs
     
     def _preprocess_answer(self, answers):
             
@@ -45,21 +82,9 @@ class MemNN:
         # get the indx of the answer from the vocab
         answers = [self.text_tokenizer.get_vocabulary().index(answer) for answer in answers]
 
-        answers = np.array(answers)
+        answers = np.array(answers, dtype=np.float32)
         return answers
                 
-    
-    def embedding(self, inputs, story=False):
-
-        x = inputs
-        
-
-        if story:
-            x = tf.keras.layers.Embedding(self.vocab_size, self.embedding_size, mask_zero=True)(x)
-        else:
-            x = tf.keras.layers.Embedding(self.vocab_size, self.embedding_size, mask_zero=True)(x)
-
-        return x
     
     def I(self, inputs):
 
@@ -69,7 +94,7 @@ class MemNN:
 
         embedded_query = self.embedding(query)
 
-        embedded_story = self.embedding(story, story=True)
+        embedded_story = self.embedding(story)
 
         return embedded_story, embedded_query
     
@@ -77,49 +102,70 @@ class MemNN:
 
         # store the story in memory and return the memory
         
-        memory = tf.keras.layers.LSTM(embedded_story.shape[-1], input_shape=(None, embedded_story.shape[-1]), return_sequences=True)(embedded_story)
+        memory = tf.keras.layers.LSTM(self.embedding_size, input_shape=(None, self.embedding_size), return_sequences=True)(embedded_story)
         
         return memory
     
     def O(self, memory, embedded_querry):
 
-        # inputs: memory, embedded_query, k
+        """
+        
+        memory: the memory that stores the story
 
-        # k is the number of hops
+        embedded_querry: the embedded query
 
+        return: the output of the model, which will be further processed by the R function
+        """
         output = embedded_querry
 
-        for i in range(self.k):
+        memory = tf.nn.l2_normalize(memory, axis=2)
+
+        for _ in range(self.k):
+
+            output = tf.nn.l2_normalize(output, axis=2)
 
             # match the output with the memory, return the index of the memory that matches the output the most
+            similarity =  tf.matmul(memory, output, transpose_b=True)
 
-            similarity = tf.keras.layers.dot([output, memory], axes=(2,2))
+            # get the memory that matches the output the most
+            idx = tf.argmax(similarity, axis=1)
 
-            # add a lstm layer to make it the dimension of the output
-            similarity = tf.keras.layers.LSTM(output.shape[-1], input_shape=(None, similarity.shape[-1]), return_sequences=True)(similarity)
+            batch_indices = tf.range(tf.shape(memory)[0], dtype=idx.dtype)
+            indices = tf.stack([batch_indices, tf.squeeze(idx, axis=1)], axis=1)
+            most_similar_memory = tf.gather_nd(memory, indices)
 
-            output = tf.keras.layers.add([output, similarity])
+            # add the most_similar_memory to the output
+            output = tf.keras.layers.add([output, most_similar_memory])
 
         return output
     
     def R(self, output):
         
-        # inputs: output, memory
+        """
 
-        answer = tf.keras.layers.LSTM(self.vocab_size)(output)
+        output: the output of the model, which will be further processed by the R function
+
+        return: the answer of the model
+
+        """
+
+        answer = tf.keras.layers.Bidirectional(tf.keras.layers.LSTM(self.embedding_size, return_sequences=True))(output)
+        answer = tf.keras.layers.Dense(self.vocab_size, activation='relu')(answer)
         answer = tf.keras.layers.Dense(self.vocab_size, activation='softmax')(answer)
 
         return answer
     
-    def build(self):
+    def _build(self):
         
         # inputs: story, query
 
-        tokenized_story = tf.keras.Input(shape=[self.max_story_len,], name='story', dtype=np.int32)
-        tokenized_query = tf.keras.Input(shape=[self.max_query_len,], name='query', dtype=np.int32)
+        # tokenized_story = tf.keras.Input(batch_size=self.batch_size, shape=[self.max_story_len], name='story', dtype=tf.string)
+        # tokenized_query = tf.keras.Input(batch_size=self.batch_size, shape=[self.max_query_len], name='query', dtype=tf.string)
 
-        embedded_story, embedded_query = self.I([tokenized_story, tokenized_query])
+        # embedded_story, embedded_query = self.I([tokenized_story, tokenized_query])
 
+        embedded_story = tf.keras.Input(batch_size=self.batch_size, shape=[self.max_story_len, self.embedding_size], name='story', dtype=tf.float32)
+        embedded_query = tf.keras.Input(batch_size=self.batch_size, shape=[self.max_query_len, self.embedding_size], name='query', dtype=tf.float32)
         # do the positional encoding here to the embedded_story and embedded_query
 
         memory = self.G(embedded_story)
@@ -128,28 +174,39 @@ class MemNN:
 
         answer = self.R(output)
 
-        model = tf.keras.Model(inputs=[tokenized_story, tokenized_query], outputs=answer)
+        model = tf.keras.models.Model(inputs=[embedded_story, embedded_query], outputs=answer)
 
         self.model = model
     
     def compile(self, optimizer="adam", loss="sparse_categorical_crossentropy", metrics=['accuracy']):
 
-        self.build()
+        self._build()
 
         self.model.compile(optimizer=optimizer, loss=loss, metrics=metrics)
 
         
-    def fit(self, story, query, answer, epochs, batch_size=4, validation_split=None, **kwargs):
+    def fit(self, story, query, answer, epochs, batch_size=32, validation_split=0.2, **kwargs):
 
-        query, story = self._preprocess_query_and_story(query, story)
+        self.batch_size = batch_size
 
-        answer = self._preprocess_answer(answer)
+        answer = np.array(self._preprocess_answer(answer))
 
-        self.model.fit([story, query], answer, epochs=epochs, batch_size=batch_size, validation_split=validation_split, **kwargs)
+        # check if the story length is less than the max_story_len, then pass " " to the story
+        # story = self._pad_stories(story)
+
+        answer = answer.reshape(-1, 1)
+
+        story, query = self.I([story, query])
+
+        self.model.fit([story, query], answer, epochs=epochs, validation_split=validation_split, **kwargs)
 
     def predict(self, story, query):
 
-        query, story = self._preprocess_query_and_story(query, story)
+        self.batch_size = story.shape[0]
+
+        story = self._pad_stories(story)
+
+        story, query = self.I([story, query])
 
         predictions = self.model.predict([story, query])
 

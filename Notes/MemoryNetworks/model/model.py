@@ -45,9 +45,8 @@ class MemNN:
     def _pad_stories(self, stories):
         batch_size, n_sentence = stories.shape
 
-        if n_sentence < self.max_story_len:
-            padding = np.array([[""] * (self.max_story_len - n_sentence)] * batch_size)
-            stories = np.concatenate((stories, padding), axis=1)
+        padding = np.array([[""] * (self.max_story_len - n_sentence)] * batch_size)
+        stories = np.concatenate((stories, padding), axis=1)
 
         return stories
 
@@ -82,7 +81,7 @@ class MemNN:
         # get the indx of the answer from the vocab
         answers = [self.text_tokenizer.get_vocabulary().index(answer) for answer in answers]
 
-        answers = np.array(answers, dtype=np.float32)
+        answers = np.array(answers, dtype=np.float32).reshape(-1, 1)
         return answers
                 
     
@@ -189,12 +188,12 @@ class MemNN:
 
         self.batch_size = batch_size
 
-        answer = np.array(self._preprocess_answer(answer))
+        answer = self._preprocess_answer(answer)
 
         # check if the story length is less than the max_story_len, then pass " " to the story
-        # story = self._pad_stories(story)
 
-        answer = answer.reshape(-1, 1)
+        if story.shape[1] < self.max_story_len:
+            story = self._pad_stories(story)
 
         story, query = self.I([story, query])
 
@@ -204,7 +203,8 @@ class MemNN:
 
         self.batch_size = story.shape[0]
 
-        story = self._pad_stories(story)
+        if story.shape[1] < self.max_story_len:
+            story = self._pad_stories(story)
 
         story, query = self.I([story, query])
 

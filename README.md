@@ -17,8 +17,19 @@
  ## [GRU](https://arxiv.org/pdf/1406.1078.pdf): In this paper, authors propose a new type of RNN called Gated Recurrent Unit (GRU). GRU is a special kind of RNN, capable of learning long-term dependencies. For more details, please refer to the [GRU](Notes/GRU/GRU.md) notes.
 
 
+ ---
+ ---
+
+ ## [Memory Networks](https://arxiv.org/pdf/1410.3916.pdf): In this paper, authors propose a new way to store and retrieve memories in a neural network. For more details, please refer to the [Memory Networks](Notes/MemoryNetworks/MemoryNetworks.md) notes.
+
+
+---
+---
+
+## [Transformers](https://arxiv.org/pdf/1706.03762.pdf): In this paper, authors propose a new architecture called Transformer, which is based solely on attention mechanisms. For more details, please refer to the [Transformers](Notes/Transformers/Transformers.md) notes.
+
 ---
 ---
 
 
-Full list of the papers and architectures is [here](https://fourth-molybdenum-10f.notion.site/55913172d1ed45089bb1e1b202d6a027?v=e2a0bf80f7fc43fc9c53ec136eb83a68)
+Full list of the papers and architectures is [here](https://skt27182.notion.site/55913172d1ed45089bb1e1b202d6a027?v=e2a0bf80f7fc43fc9c53ec136eb83a68&pvs=4)
